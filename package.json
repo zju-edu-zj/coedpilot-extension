@@ -31,7 +31,7 @@
         "properties": {
           "coEdPilot.queryURL": {
             "type": "string",
-            "default": "http://localhost:5003",
+            "default": "http://localhost:6006",
             "description": "The backend URL to send query request to."
           },
           "coEdPilot.predictLocationOnEditAcception": {
@@ -259,6 +259,7 @@
   "dependencies": {
     "@vscode/test-electron": "^2.3.0",
     "axios": "^1.6.0",
+    "co-ed-pilot": "file:",
     "diff": "^5.1.0",
     "eslint": "^9.19.0",
     "glob": "^10.3.10",

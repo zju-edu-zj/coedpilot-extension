@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader, SequentialSampler, TensorDataset
 from transformers import (RobertaConfig, RobertaModel, RobertaTokenizer)
 from perf import Stopwatch
 from model_manager import load_model_with_cache
+import json
 
 CODE_WINDOW_LENGTH = 10
 MODEL_ROLE = "locator"
@@ -217,8 +218,8 @@ def predict(json_input, language):
     commitMessage = json_input["commitMessage"]
     prevEdits = json_input["prevEdits"]
     results = []
-    # print("+++ Prev Edits:")
-    # print(json.dumps(prevEdits, indent=4))
+    print("+++ Prev Edits:")
+    print(json.dumps(prevEdits, indent=4))
 
     window_token_cnt = 0
     window_line_cnt = 0

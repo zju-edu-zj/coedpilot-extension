@@ -248,3 +248,24 @@ The project is still in development, not fully tested on different platforms.
 Welcome to propose issues or contribute to the code.
 
 **😄 Enjoy coding!**
+
+我现在就是主要把工程方面差不多搞好了，还差一些，用的就是coedpilot里的模型。现在就是主要想找一些创新点，工程方面的话可以做一些优化，不过还是比较麻烦。然后我多找邓师兄沟通一下？
+
+
+触发的条件？
+1. 分析错误case
+2. 收集数据， 如何知道用户先编辑了哪个hunk? 能否先设计一些启发式算法或 排序  
+是否能将commit 解耦成一个个的小edit  edit sequence
+变成可以训练的edits数据
+
+
+微调1.3b的模型？
+
+general的edit并不关心, 代码补全我们并不关心 数据筛选时 编辑补全不一样
+
+1月16日
+做个ppt 展示插件
+
+1: 'user_control_state = 1\r\n\r\ndef get_user_control_state():\r\n    global user_control_state\r\n    return user_control_state\r\n\r\ndef set_user_control_state(new_state):\r\n    global user_control_state\r\n    user_control_state = new_state\r\n    print("user_control_state set to ", user_control_state)'
+
+1: '﻿import asyncio\r\nimport logging\r\nimport uuid\r\nfrom datetime import datetime\r\nfrom typing import Callable\r\nimport time\r\n\r\nfrom data_types.account import Account\r\nfrom data_types.chat_messages import DetailMessage, TextMessage\r\nfrom routes.websocket_manager import websocket_manager, WebSocketManager\r\nfrom data_types.client_messages import Channel\r\nfrom senders.wechat_sender import WeChatSenderClient\r\nfrom senders.mp_sender import MiniProgramSenderClient\r\nfrom data_types.system_signals import Stat…= None):\r\n    await sender.send_message(user_id, message)\r\n\r\n\r\nasync def check_received(user_id, fake_msg_id, msg_id, create_time, channel: Channel):\r\n    await sender.check_received(user_id, fake_msg_id, msg_id, create_time, channel)\r\n\r\n\r\nasync def update_last_online_time(user_id, channel: Channel):\r\n    await sender.update_last_online_time(user_id, channel)\r\n\r\nasync def send_system_status_signal(user_id: str, status: StatusSignal):\r\n    await sender.send_system_status_signal(user_id, status)'

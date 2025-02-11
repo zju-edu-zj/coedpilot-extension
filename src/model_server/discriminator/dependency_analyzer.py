@@ -9,8 +9,8 @@ from torch.utils.data import DataLoader, TensorDataset
 
 
 class DependencyAnalyzer(nn.Module, PyTorchModelHubMixin):
-    def __init__(self, encoder: PreTrainedModel | None = None,
-                 match_tokenizer: RobertaTokenizerFast | None = None):
+    def __init__(self, encoder: PreTrainedModel = None,
+                 match_tokenizer: RobertaTokenizerFast = None):
         super(DependencyAnalyzer, self).__init__()
         if not encoder:
             encoder: PreTrainedModel = EncoderDecoderModel.from_encoder_decoder_pretrained(

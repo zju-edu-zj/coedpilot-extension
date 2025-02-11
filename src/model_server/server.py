@@ -9,7 +9,7 @@ import configparser
 
 app = Flask(__name__)
 
-DEBUG = False
+DEBUG = True
 SUPPORTED_LANGUAGES = ["go", "python", "java", "typescript", "javascript"]
 
 print(">>> Modules loaded. Server ready.")

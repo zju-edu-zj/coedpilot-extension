@@ -12,7 +12,9 @@ import os
 import git
 import requests
 import shutil
+import tqdm
 
+# os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
 
 SUPPORTED_LANG = [
     'go', 'java', 'javascript', 'python', 'typescript'
@@ -40,19 +42,51 @@ def prepare_dir(model_dir: str):
         os.makedirs(f'{model_dir}/{it}', exist_ok=True)
 
 
-def download_file(url: str, target: str) -> int:
-    """
-    Download a single file from `url`, save to file `target`.
-    """
+def download_file(url: str, dest: str):
+    """下载文件并显示进度条，支持断点续传"""
+    # 检查文件是否已经存在并获取其大小
+    if os.path.exists(dest):
+        existing_file_size = os.path.getsize(dest)
+    else:
+        existing_file_size = 0
 
-    response = requests.get(url)
-    if response.status_code != 200:
-        print(f"Failed to download: {url}")
-        return 1
-    with open(target, 'wb') as f:
-        f.write(response.content)
+    headers = {"Range": f"bytes={existing_file_size}-"}
+    response = requests.get(url, headers=headers, stream=True)
 
+    # 获取总大小并调整为剩余大小
+    total_size = int(response.headers.get('content-length', 0)) + existing_file_size
+
+    with open(dest, 'ab') as file:  # 使用 'ab' 模式以追加到文件
+        with tqdm.tqdm(
+            desc=dest,
+            total=total_size,
+            initial=existing_file_size,
+            unit='B',
+            unit_scale=True,
+            unit_divisor=1024,
+        ) as bar:
+            for data in response.iter_content(chunk_size=1024):
+                file.write(data)
+                bar.update(len(data))
+
+    # 检查文件大小是否与预期一致
+    if total_size != 0 and total_size != os.path.getsize(dest):
+        print(f"ERROR, something went wrong")
     return 0
+
+# def download_file(url: str, target: str) -> int:
+#     """
+#     Download a single file from `url`, save to file `target`.
+#     """
+
+#     response = requests.get(url)
+#     if response.status_code != 200:
+#         print(f"Failed to download: {url}")
+#         return 1
+#     with open(target, 'wb') as f:
+#         f.write(response.content)
+
+#     return 0
 
 
 def clone_dependency_analyzer(model_dir: str):
@@ -98,7 +132,7 @@ def download(model_dir: str, lang: str) -> int:
     for it in download_list:
         res = download_file(
             url=it[0],
-            target=f'{lang_model_dir}/{it[1]}'
+            dest=f'{lang_model_dir}/{it[1]}'
         )
         if res != 0:
             return 2
