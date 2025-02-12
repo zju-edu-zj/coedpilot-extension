@@ -50,7 +50,7 @@ def load_reg_model(lang):
     # The regression model is fit based on the validation set
     with open(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'models', f"./{lang}/reg_model.pickle"), 'rb') as file:
         reg = pickle.load(file)
-    print("Successfully loaded discriminator regression model")
+    
     return reg
 
 
