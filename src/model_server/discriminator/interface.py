@@ -54,6 +54,96 @@ def load_reg_model(lang):
     return reg
 
 
+class DiscriminatorPredictor:
+    _instance = None
+    _model = None
+    _tokenizer = None
+    _device = None
+    _reg_model = None
+    _dependency_analyzer = None
+
+    def __init__(self):
+        raise RuntimeError('Call get_instance() instead')
+
+    @classmethod
+    def get_instance(cls):
+        if cls._instance is None:
+            cls._instance = cls.__new__(cls)
+            cls._instance._initialize()
+        return cls._instance
+
+    def _initialize(self):
+        """初始化所有需要的模型和组件"""
+        print("初始化判别器...")
+        # 加载嵌入模型
+        self._model, self._tokenizer, self._device = load_model_with_cache(
+            MODEL_ROLE, 'python', load_model)
+        # 加载回归模型
+        self._reg_model = load_reg_model('python')
+        # 加载依赖分析器
+        self._dependency_analyzer = DependencyClassifier()
+        print("判别器初始化完成")
+
+    def predict(self, json_input):
+        """预测方法"""
+        stopwatch = Stopwatch()
+        stopwatch.start()
+
+        # 0. remove targetFilePath from input["files"]
+        if (len(json_input["prevEdits"]) == 0):
+            return {"data": []}
+        prev_edit = json_input["prevEdits"][-1]
+        prev_edit_hunk = {}
+        prev_edit_hunk["code_window"] = [
+            prev_edit["codeAbove"],
+            prev_edit["beforeEdit"],
+            prev_edit["codeBelow"]]
+
+        for i in range(len(json_input["files"])):
+            if json_input["files"][i][0] == json_input["targetFilePath"]:
+                json_input["files"].pop(i)
+                break
+        if (len(json_input["files"]) == 0):
+            return {"data": []}
+
+        # 1. construct discriminator dataset
+        dataset = construct_discriminator_dataset(
+            prev_edit_hunk, json_input["files"], self._dependency_analyzer)
+        stopwatch.lap('build code collection')
+
+        # 2. Calculate the semantic similarity
+        tensor_dataset = load_siamese_data(dataset, self._tokenizer, False)
+        dataloader = DataLoader(tensor_dataset, batch_size=1, shuffle=False)
+        embedding_similiarity = evaluate_embedding_model(
+            self._model, dataloader, "test")
+        stopwatch.lap('calculate the semantic similarity')
+
+        # 3. Use linear regression to predict label
+        X_test = [dataset[idx]["dependency_score"] + [embedding_similiarity[idx]]
+                  for idx in range(len(embedding_similiarity))]
+        y_pred = self._reg_model.predict(X_test)
+        y_pred = [1 if y > 0.5 else 0 for y in y_pred]
+
+        files_pred = []
+        for i in range(len(y_pred)):
+            if y_pred[i] == 1:
+                files_pred.append(json_input["files"][i][0])
+        stopwatch.lap('infer result')
+
+        # 4. prepare output
+        output = {"data": []}
+        for file in files_pred:
+            output["data"].append(file)
+            if len(output["data"]) >= OUTPUT_MAX:
+                break
+        stopwatch.lap('post-process result')
+        
+        print("+++ Discriminator profiling:")
+        stopwatch.print_result()
+
+        return output
+
+
 def predict(json_input, language):
     '''
     Function: this is the interface between discriminator and VSCode extension
@@ -71,67 +161,5 @@ def predict(json_input, language):
                 "data": [string], relative file paths that are probably related to target file
             }
     '''
-    stopwatch = Stopwatch()
-
-    stopwatch.start()
-    # check model cache
-    model, tokenizer, device = load_model_with_cache(
-        MODEL_ROLE, language, load_model)
-    regModel = load_reg_model(language)
-    dependency_analyzer = DependencyClassifier()
-    stopwatch.lap('load model')
-
-    # 0. remove targetFilePath from input["files"]
-    # the last element of prevEdits is the edit that just happened, which is
-    # in targetFilePath
-    if (len(json_input["prevEdits"]) == 0):
-        return {"data": []}
-    prev_edit = json_input["prevEdits"][-1]
-    prev_edit_hunk = {}
-    prev_edit_hunk["code_window"] = [
-        prev_edit["codeAbove"],
-        prev_edit["beforeEdit"],
-        prev_edit["codeBelow"]]
-
-    for i in range(len(json_input["files"])):
-        if json_input["files"][i][0] == json_input["targetFilePath"]:
-            json_input["files"].pop(i)
-            break
-    if (len(json_input["files"]) == 0):
-        return {"data": []}
-
-    # 1. construct discriminator dataset
-    dataset = construct_discriminator_dataset(
-        prev_edit_hunk, json_input["files"], dependency_analyzer)
-    stopwatch.lap('build code collection')
-
-    # 2. Calculate the semantic similarity between the edit and the file
-    # dataset
-    tensor_dataset = load_siamese_data(dataset, tokenizer, False)
-    dataloader = DataLoader(tensor_dataset, batch_size=1, shuffle=False)
-    embedding_similiarity = evaluate_embedding_model(model, dataloader, "test")
-    stopwatch.lap('calculate the semantic similarity')
-
-    # 3. Use linear regression to predict label
-    X_test = [dataset[idx]["dependency_score"] + [embedding_similiarity[idx]]
-              for idx in range(len(embedding_similiarity))]
-    y_pred = regModel.predict(X_test)
-    y_pred = [1 if y > 0.5 else 0 for y in y_pred]
-
-    files_pred = []
-    for i in range(len(y_pred)):
-        if y_pred[i] == 1:
-            files_pred.append(json_input["files"][i][0])
-    stopwatch.lap('infer result')
-
-    # 4. prepare output
-    output = {"data": []}
-    for file in files_pred:
-        output["data"].append(file)
-        if len(output["data"]) >= OUTPUT_MAX:
-            break
-    stopwatch.lap('post-process result')
-    print("+++ Discriminator profiling:")
-    stopwatch.print_result()
-
-    return output
+    predictor = DiscriminatorPredictor.get_instance()
+    return predictor.predict(json_input)
