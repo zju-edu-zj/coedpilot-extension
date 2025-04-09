@@ -265,13 +265,10 @@ def predict(json_input, language):
             if try_feed_in_window(cur_line, i):
                 i += 1
             else:
-                if window_line_cnt == 0:    # 当前行太长
-                    max_attempts = 10
-                    attempts = 0
-                    temp_line = cur_line
-                    while attempts < max_attempts:
-                        temp_line = temp_line[:len(temp_line) // 2]
-                        if try_feed_in_window(temp_line, i) or len(temp_line) <= 1:
+                if window_line_cnt == 0:    # the first line is longer than window limit
+                    while True:
+                        cur_line = cur_line[:len(cur_line) // 2]
+                        if try_feed_in_window(cur_line):
                             break
                         attempts += 1
                     i += 1

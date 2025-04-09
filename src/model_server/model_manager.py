@@ -6,6 +6,7 @@ BASE_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'models')
 
 
 def get_model_path(model_role, language):
+    print(BASE_DIR)
     return os.path.join(BASE_DIR, language, f'{model_role}_model.bin')
 
 
