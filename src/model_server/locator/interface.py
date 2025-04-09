@@ -225,11 +225,10 @@ def predict(json_input, language):
     window_line_cnt = 0
     window_text = ""
 
-    def try_feed_in_window(text):
+    def try_feed_in_window(text, line_idx):
         nonlocal window_token_cnt, window_line_cnt, window_text
         masked_line = " <mask> " + text
         masked_line_token_cnt = len(tokenizer.tokenize(masked_line))
-        # a conservative number for token number
         if window_token_cnt + masked_line_token_cnt < 508 and window_line_cnt < 10:
             window_token_cnt += masked_line_token_cnt
             window_line_cnt += 1
@@ -240,14 +239,12 @@ def predict(json_input, language):
 
     def end_window(input_list):
         nonlocal prevEdits, commitMessage, window_token_cnt, window_line_cnt, window_text
-        model_input = window_text + ' </s> ' + commitMessage
-        for prevEdit in prevEdits:
-            model_input += ' </s> replace ' + \
-                prevEdit["beforeEdit"] + ' add ' + prevEdit["afterEdit"]
-        input_list.append(model_input)
-        # with open(r"C:\Users\aaa\Desktop\edit-pilot\mark.txt", "a+", newline='') as f:
-        #     f.write(model_input)
-        #     f.write("\n")
+        if len(window_text) > 0:  # 只有在窗口有内容时才处理
+            model_input = window_text + ' </s> ' + commitMessage
+            for prevEdit in prevEdits:
+                model_input += ' </s> replace ' + \
+                    prevEdit["beforeEdit"] + ' add ' + prevEdit["afterEdit"]
+            input_list.append(model_input)
         window_token_cnt = 0
         window_line_cnt = 0
         window_text = ""
@@ -265,20 +262,33 @@ def predict(json_input, language):
         i = 0
         while i < targetFileLineNum:
             cur_line = targetFileLines[i]
-            if try_feed_in_window(cur_line):
+            if try_feed_in_window(cur_line, i):
                 i += 1
             else:
-                if window_line_cnt == 0:    # the first line is longer than window limit
-                    while True:
-                        cur_line = cur_line[:len(cur_line) / 2]
-                        if try_feed_in_window(cur_line):
+                if window_line_cnt == 0:    # 当前行太长
+                    max_attempts = 10
+                    attempts = 0
+                    temp_line = cur_line
+                    while attempts < max_attempts:
+                        temp_line = temp_line[:len(temp_line) // 2]
+                        if try_feed_in_window(temp_line, i) or len(temp_line) <= 1:
                             break
+                        attempts += 1
+                    i += 1
                 else:
                     end_window(model_inputs)
         if len(window_text) > 0:
             end_window(model_inputs)
         stopwatch.lap_by_task('assemble input text')
 
+        # 在处理完所有窗口后
+        print(f"Number of windows: {len(model_inputs)}")
+        total_masks = 0
+        for idx, input_text in enumerate(model_inputs):
+            mask_count = input_text.count("<mask>")
+            print(f"Window {idx}: {mask_count} masks")
+            total_masks += mask_count
+        print(f"Total masks: {total_masks} with target file lines: {targetFileLineNum}")
         # prepare model input (tensor format)
         examples = read_examples(model_inputs)
         eval_features = convert_examples_to_features(
@@ -335,6 +345,10 @@ def predict(json_input, language):
             raise ValueError(f'The number of lines ({targetFileLineNum}) in the target file is not equal to the number of confidences ({len(confidences)}).')
         stopwatch.lap_by_task('infer result')
 
+        # 在模型预测后
+        print(f"Total predictions: {len(preds)}")
+        print(f"Total file lines: {targetFileLineNum}")
+
         # print(f"+++ Target file lines:\n{''.join([preds[i] + '    ' + targetFileLines[i] for i in range(targetFileLineNum)])}")
         # get the edit range
         # text = ''
@@ -363,5 +377,28 @@ def predict(json_input, language):
     stopwatch.lap('post-process result')
     print("+++ Locator profiling:")
     stopwatch.print_result()
+
+    # # 重新组织预测结果
+    # final_preds = [None] * targetFileLineNum
+    # final_confidences = [None] * targetFileLineNum
+    
+    # pred_idx = 0
+    # for i in range(targetFileLineNum):
+    #     if i in line_to_window_map:
+    #         final_preds[i] = preds[pred_idx]
+    #         final_confidences[i] = confidences[pred_idx]
+    #         pred_idx += 1
+    #     else:
+    #         final_preds[i] = 'keep'  # 对于未能处理的行，默认为keep
+    #         final_confidences[i] = 0.0
+
+    # preds = final_preds
+    # confidences = final_confidences
+
+    # # 验证行数匹配
+    # if len(preds) != targetFileLineNum:
+    #     print(f"Warning: Predictions count mismatch. Expected {targetFileLineNum}, got {len(preds)}")
+    #     print("Line to window mapping:", line_to_window_map)
+    #     raise ValueError(f'The number of lines ({targetFileLineNum}) in the target file is not equal to the number of predictions ({len(preds)}).')
 
     return {"data": results}
